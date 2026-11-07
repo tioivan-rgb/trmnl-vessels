@@ -1,0 +1,27 @@
+name: Update TRMNL vessels
+
+on:
+  schedule:
+    # every 15 min, offset from the top of the hour when GitHub is busiest
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:   # adds a "Run workflow" button for testing
+
+concurrency:
+  group: trmnl-vessels
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install websockets
+      - run: python bridge.py
+        env:
+          AISSTREAM_API_KEY: ${{ secrets.AISSTREAM_API_KEY }}
+          TRMNL_WEBHOOK_URL: ${{ secrets.TRMNL_WEBHOOK_URL }}
+          VESSELS: ${{ secrets.VESSELS }}
