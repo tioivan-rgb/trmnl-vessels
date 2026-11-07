@@ -31,6 +31,12 @@ WEBHOOK = os.environ["TRMNL_WEBHOOK_URL"].strip()
 LISTEN = int(os.environ.get("LISTEN_SECONDS", "240"))
 MAX_BYTES = int(os.environ.get("MAX_PAYLOAD_BYTES", "2048"))
 STALE_AFTER = float(os.environ.get("STALE_AFTER_HOURS", "6")) * 3600
+# TRMNL sits behind Cloudflare, which blocks Python's default User-Agent
+# (error code 1010), so identify ourselves like a normal client.
+HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; trmnl-vessels/1.0)",
+    "Accept": "application/json",
+}
 
 LABELS = {}
 for part in os.environ["VESSELS"].split(","):
@@ -161,7 +167,8 @@ async def listen(fresh):
 def fetch_previous():
     """What TRMNL currently has, so vessels not heard this run keep data."""
     try:
-        with urllib.request.urlopen(WEBHOOK, timeout=20) as r:
+        req = urllib.request.Request(WEBHOOK, headers=HTTP_HEADERS)
+        with urllib.request.urlopen(req, timeout=20) as r:
             data = json.loads(r.read())
         mv = data.get("merge_variables", data) or {}
         return {str(r["m"]): r for r in mv.get("vessels", [])
@@ -213,7 +220,7 @@ def build_payload(prev, fresh):
 def push(data):
     req = urllib.request.Request(
         WEBHOOK, data=data, method="POST",
-        headers={"Content-Type": "application/json"})
+        headers={**HTTP_HEADERS, "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             log(f"pushed {len(data)} bytes -> HTTP {r.status}")
